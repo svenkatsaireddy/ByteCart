@@ -1,0 +1,25 @@
+package errs
+
+import (
+	"github.com/gin-gonic/gin"
+)
+
+// JSON writes the standardized API error envelope.
+func JSON(c *gin.Context, status int, code, message string) {
+	c.JSON(status, gin.H{
+		"error": gin.H{
+			"code":    code,
+			"message": message,
+		},
+	})
+}
+
+// Common codes
+const (
+	CodeBadRequest   = "BAD_REQUEST"
+	CodeUnauthorized = "UNAUTHORIZED"
+	CodeForbidden    = "FORBIDDEN"
+	CodeValidation   = "VALIDATION_ERROR"
+	CodeNotFound     = "NOT_FOUND"
+	CodeInternal     = "INTERNAL_ERROR"
+)

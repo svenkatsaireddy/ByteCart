@@ -1,0 +1,155 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+// Config holds runtime settings.
+type Config struct {
+	Addr                 string
+	ProductsPath         string
+	CouponPaths          []string
+	RequireCouponFiles   bool
+	APIKeys              map[string][]string // key -> scopes
+	PromoDiscountPercent float64
+}
+
+func getenv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+func getenvFloat(key string, def float64) float64 {
+	s := os.Getenv(key)
+	if s == "" {
+		return def
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return def
+	}
+	return f
+}
+
+// Load reads configuration from environment variables.
+func Load() Config {
+	addr := getenv("ADDR", ":8080")
+	products := getenv("PRODUCTS_PATH", "data/products.json")
+
+	var couponPaths []string
+	if p := os.Getenv("COUPON_FILE_PATHS"); p != "" {
+		for _, part := range strings.Split(p, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				couponPaths = append(couponPaths, part)
+			}
+		}
+	} else {
+		couponPaths = []string{
+			"data/coupons/couponbase1.gz",
+			"data/coupons/couponbase2.gz",
+			"data/coupons/couponbase3.gz",
+		}
+	}
+
+	require := getenv("REQUIRE_COUPON_FILES", "true") != "false"
+
+	keys := parseAPIKeys(getenv("API_KEYS", "apitest:create_order,readonly:"))
+	discount := getenvFloat("PROMO_DISCOUNT_PERCENT", 10)
+
+	cfg := Config{
+		Addr:                 addr,
+		ProductsPath:         products,
+		CouponPaths:          couponPaths,
+		RequireCouponFiles:   require,
+		APIKeys:              keys,
+		PromoDiscountPercent: discount,
+	}
+	cfg.resolvePaths()
+	return cfg
+}
+
+// resolvePaths makes default relative paths work when the process cwd is not the module root
+// (e.g. `go run .` from cmd/server). If a path is relative and missing from cwd, it is joined
+// with the directory that contains go.mod when that file exists.
+func (c *Config) resolvePaths() {
+	root := findModuleRoot()
+	if root == "" {
+		return
+	}
+	c.ProductsPath = resolveDataPath(c.ProductsPath, root)
+	for i, p := range c.CouponPaths {
+		c.CouponPaths[i] = resolveDataPath(p, root)
+	}
+}
+
+func resolveDataPath(p, moduleRoot string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+	if fileExists(p) {
+		return p
+	}
+	candidate := filepath.Join(moduleRoot, filepath.Clean(p))
+	if fileExists(candidate) {
+		return candidate
+	}
+	return p
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func findModuleRoot() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for range 32 {
+		if fileExists(filepath.Join(dir, "go.mod")) {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ""
+}
+
+func parseAPIKeys(s string) map[string][]string {
+	out := make(map[string][]string)
+	for _, seg := range strings.Split(s, ",") {
+		seg = strings.TrimSpace(seg)
+		if seg == "" {
+			continue
+		}
+		key, scopes, ok := strings.Cut(seg, ":")
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		var sc []string
+		if ok {
+			for _, sp := range strings.Split(scopes, "+") {
+				sp = strings.TrimSpace(sp)
+				if sp != "" {
+					sc = append(sc, sp)
+				}
+			}
+		}
+		out[key] = sc
+	}
+	if len(out) == 0 {
+		out["apitest"] = []string{"create_order"}
+	}
+	return out
+}

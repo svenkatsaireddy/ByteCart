@@ -1,3 +1,10 @@
+# Go
+/bin/
+*.exe
+
+# Large coupon corpora (download per backend README)
+data/coupons/*.gz
+
 # Logs
 logs
 *.log

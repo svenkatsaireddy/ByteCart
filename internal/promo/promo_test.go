@@ -1,0 +1,55 @@
+package promo
+
+import (
+	"testing"
+)
+
+func TestValidatorFromStringContents(t *testing.T) {
+	// CODE1234 appears in files 0 and 1 -> valid (8 chars)
+	f0 := "prefix CODE1234 suffix"
+	f1 := "xx CODE1234 yy"
+	f2 := "no match here"
+	v, err := NewValidatorFromStringContents([]string{f0, f1, f2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.Valid("CODE1234") {
+		t.Fatal("expected CODE1234 valid")
+	}
+	if v.Valid("CODE12345") {
+		t.Fatal("CODE12345 should not appear as substring in two files")
+	}
+}
+
+func TestValidatorLength(t *testing.T) {
+	f0 := "ABCDEFGH IJKLMNOPQR" // ABCDEFGH at start
+	f1 := "xx ABCDEFGH yy"
+	f2 := "zz"
+	v, err := NewValidatorFromStringContents([]string{f0, f1, f2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.Valid("ABCDEFGH") {
+		t.Fatal("expected ABCDEFGH valid (8 chars, 2 files)")
+	}
+	if v.Valid("SHORT") {
+		t.Fatal("short code invalid")
+	}
+	if v.Valid("TOOLONGCODE1") {
+		t.Fatal("11 chars invalid")
+	}
+}
+
+func TestValidatorOneFileOnly(t *testing.T) {
+	code := "ONLYFILE1" // 9 chars
+	f0 := "x " + code + " y"
+	f1 := "no"
+	f2 := "no"
+	v, err := NewValidatorFromStringContents([]string{f0, f1, f2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Valid(code) {
+		t.Fatal("code in one file only should be invalid")
+	}
+}
