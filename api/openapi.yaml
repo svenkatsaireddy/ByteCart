@@ -92,6 +92,35 @@ paths:
           description: Forbidden
         '422':
           description: Validation exception
+  /coupon/validate:
+    post:
+      tags:
+        - order
+      summary: Validate a coupon
+      description: Validate and preview a coupon against the current cart without creating an order
+      operationId: validateCoupon
+      security:
+        - api_key: ["create_order"]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderReq'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponValidation'
+        '400':
+          description: Invalid input
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '422':
+          description: Validation exception
 components:
   schemas:
     Order:
@@ -115,6 +144,37 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Product'
+        couponCode:
+          type: string
+          description: Promo code applied to the order
+        subtotal:
+          type: number
+          format: float
+          description: Order total before discount
+        discount:
+          type: number
+          format: float
+          description: Discount applied to the order
+        total:
+          type: number
+          format: float
+          description: Final order total after discount
+    CouponValidation:
+      type: object
+      properties:
+        couponCode:
+          type: string
+        subtotal:
+          type: number
+          format: float
+        discount:
+          type: number
+          format: float
+        total:
+          type: number
+          format: float
+        message:
+          type: string
     OrderReq:
       type: object
       description: Place a new order
@@ -154,6 +214,23 @@ components:
         category:
           type: string
           examples: [Waffle]
+        image:
+          $ref: '#/components/schemas/ProductImage'
+    ProductImage:
+      type: object
+      properties:
+        thumbnail:
+          type: string
+          format: uri
+        mobile:
+          type: string
+          format: uri
+        tablet:
+          type: string
+          format: uri
+        desktop:
+          type: string
+          format: uri
     ApiResponse:
       type: object
       properties:

@@ -15,6 +15,63 @@ type ProductStore struct {
 	list []models.Product
 }
 
+var productImages = map[string]models.ProductImage{
+	"1": {
+		Thumbnail: "https://orderfoodonline.deno.dev/public/images/image-waffle-thumbnail.jpg",
+		Mobile:    "https://orderfoodonline.deno.dev/public/images/image-waffle-mobile.jpg",
+		Tablet:    "https://orderfoodonline.deno.dev/public/images/image-waffle-tablet.jpg",
+		Desktop:   "https://orderfoodonline.deno.dev/public/images/image-waffle-desktop.jpg",
+	},
+	"2": {
+		Thumbnail: "https://orderfoodonline.deno.dev/public/images/image-creme-brulee-thumbnail.jpg",
+		Mobile:    "https://orderfoodonline.deno.dev/public/images/image-creme-brulee-mobile.jpg",
+		Tablet:    "https://orderfoodonline.deno.dev/public/images/image-creme-brulee-tablet.jpg",
+		Desktop:   "https://orderfoodonline.deno.dev/public/images/image-creme-brulee-desktop.jpg",
+	},
+	"3": {
+		Thumbnail: "https://orderfoodonline.deno.dev/public/images/image-macaron-thumbnail.jpg",
+		Mobile:    "https://orderfoodonline.deno.dev/public/images/image-macaron-mobile.jpg",
+		Tablet:    "https://orderfoodonline.deno.dev/public/images/image-macaron-tablet.jpg",
+		Desktop:   "https://orderfoodonline.deno.dev/public/images/image-macaron-desktop.jpg",
+	},
+	"4": {
+		Thumbnail: "https://orderfoodonline.deno.dev/public/images/image-tiramisu-thumbnail.jpg",
+		Mobile:    "https://orderfoodonline.deno.dev/public/images/image-tiramisu-mobile.jpg",
+		Tablet:    "https://orderfoodonline.deno.dev/public/images/image-tiramisu-tablet.jpg",
+		Desktop:   "https://orderfoodonline.deno.dev/public/images/image-tiramisu-desktop.jpg",
+	},
+	"5": {
+		Thumbnail: "https://orderfoodonline.deno.dev/public/images/image-baklava-thumbnail.jpg",
+		Mobile:    "https://orderfoodonline.deno.dev/public/images/image-baklava-mobile.jpg",
+		Tablet:    "https://orderfoodonline.deno.dev/public/images/image-baklava-tablet.jpg",
+		Desktop:   "https://orderfoodonline.deno.dev/public/images/image-baklava-desktop.jpg",
+	},
+	"6": {
+		Thumbnail: "https://orderfoodonline.deno.dev/public/images/image-meringue-thumbnail.jpg",
+		Mobile:    "https://orderfoodonline.deno.dev/public/images/image-meringue-mobile.jpg",
+		Tablet:    "https://orderfoodonline.deno.dev/public/images/image-meringue-tablet.jpg",
+		Desktop:   "https://orderfoodonline.deno.dev/public/images/image-meringue-desktop.jpg",
+	},
+	"7": {
+		Thumbnail: "https://orderfoodonline.deno.dev/public/images/image-cake-thumbnail.jpg",
+		Mobile:    "https://orderfoodonline.deno.dev/public/images/image-cake-mobile.jpg",
+		Tablet:    "https://orderfoodonline.deno.dev/public/images/image-cake-tablet.jpg",
+		Desktop:   "https://orderfoodonline.deno.dev/public/images/image-cake-desktop.jpg",
+	},
+	"8": {
+		Thumbnail: "https://orderfoodonline.deno.dev/public/images/image-brownie-thumbnail.jpg",
+		Mobile:    "https://orderfoodonline.deno.dev/public/images/image-brownie-mobile.jpg",
+		Tablet:    "https://orderfoodonline.deno.dev/public/images/image-brownie-tablet.jpg",
+		Desktop:   "https://orderfoodonline.deno.dev/public/images/image-brownie-desktop.jpg",
+	},
+	"9": {
+		Thumbnail: "https://orderfoodonline.deno.dev/public/images/image-panna-cotta-thumbnail.jpg",
+		Mobile:    "https://orderfoodonline.deno.dev/public/images/image-panna-cotta-mobile.jpg",
+		Tablet:    "https://orderfoodonline.deno.dev/public/images/image-panna-cotta-tablet.jpg",
+		Desktop:   "https://orderfoodonline.deno.dev/public/images/image-panna-cotta-desktop.jpg",
+	},
+}
+
 // LoadProducts reads JSON array of products from path.
 func LoadProducts(path string) (*ProductStore, error) {
 	b, err := os.ReadFile(path)
@@ -27,7 +84,15 @@ func LoadProducts(path string) (*ProductStore, error) {
 	}
 	byID := make(map[string]models.Product, len(list))
 	for _, p := range list {
+		if img, ok := productImages[p.ID]; ok {
+			p.Image = img
+		}
 		byID[p.ID] = p
+	}
+	for i := range list {
+		if img, ok := productImages[list[i].ID]; ok {
+			list[i].Image = img
+		}
 	}
 	return &ProductStore{byID: byID, list: list}, nil
 }

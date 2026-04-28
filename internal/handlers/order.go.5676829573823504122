@@ -1,11 +1,9 @@
 package handlers
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -40,22 +38,23 @@ type validationError struct {
 
 // PlaceOrder is POST /order.
 func (h *Handler) PlaceOrder(c *gin.Context) {
-	req, decodeErr := decodeOrderReq(c)
-	if decodeErr != nil {
-		errs.JSON(c, decodeErr.status, decodeErr.code, decodeErr.message)
-		return
-	}
-
-	idempotencyKey := strings.TrimSpace(c.GetHeader(headerIdempotency))
-	fingerprint := requestFingerprint(req)
-	if idempotencyKey != "" && h.Idempotent != nil {
-		if body, status, replay, conflict := h.Idempotent.Get(idempotencyKey, fingerprint); replay {
+	if key := strings.TrimSpace(c.GetHeader(headerIdempotency)); key != "" && h.Idempotent != nil {
+		if body, status, ok := h.Idempotent.Get(key); ok {
 			c.Data(status, "application/json", body)
 			return
-		} else if conflict {
-			errs.JSON(c, http.StatusConflict, errs.CodeConflict, "idempotency key was already used with a different request")
-			return
 		}
+	}
+
+	var req models.OrderReq
+	dec := json.NewDecoder(c.Request.Body)
+	if err := dec.Decode(&req); err != nil {
+		msg := "invalid JSON body"
+		var se *json.SyntaxError
+		if errors.As(err, &se) {
+			msg = fmt.Sprintf("invalid JSON at byte offset %d", se.Offset)
+		}
+		errs.JSON(c, http.StatusBadRequest, errs.CodeBadRequest, msg)
+		return
 	}
 
 	calc, validationErr := h.calculateOrder(req)
@@ -80,8 +79,8 @@ func (h *Handler) PlaceOrder(c *gin.Context) {
 		return
 	}
 
-	if idempotencyKey != "" && h.Idempotent != nil {
-		h.Idempotent.Put(idempotencyKey, fingerprint, http.StatusOK, raw)
+	if key := strings.TrimSpace(c.GetHeader(headerIdempotency)); key != "" && h.Idempotent != nil {
+		h.Idempotent.Put(key, http.StatusOK, raw)
 	}
 
 	c.Data(http.StatusOK, "application/json", raw)
@@ -89,9 +88,15 @@ func (h *Handler) PlaceOrder(c *gin.Context) {
 
 // ValidateCoupon previews whether a coupon is valid for the current order draft.
 func (h *Handler) ValidateCoupon(c *gin.Context) {
-	req, decodeErr := decodeOrderReq(c)
-	if decodeErr != nil {
-		errs.JSON(c, decodeErr.status, decodeErr.code, decodeErr.message)
+	var req models.OrderReq
+	dec := json.NewDecoder(c.Request.Body)
+	if err := dec.Decode(&req); err != nil {
+		msg := "invalid JSON body"
+		var se *json.SyntaxError
+		if errors.As(err, &se) {
+			msg = fmt.Sprintf("invalid JSON at byte offset %d", se.Offset)
+		}
+		errs.JSON(c, http.StatusBadRequest, errs.CodeBadRequest, msg)
 		return
 	}
 
@@ -113,71 +118,6 @@ func (h *Handler) ValidateCoupon(c *gin.Context) {
 		Total:      calc.Total,
 		Message:    "coupon applied",
 	})
-}
-
-func decodeOrderReq(c *gin.Context) (models.OrderReq, *validationError) {
-	var req models.OrderReq
-	dec := json.NewDecoder(c.Request.Body)
-	if err := dec.Decode(&req); err != nil {
-		return models.OrderReq{}, badJSON(err)
-	}
-
-	var extra json.RawMessage
-	if err := dec.Decode(&extra); err != io.EOF {
-		if err == nil {
-			return models.OrderReq{}, &validationError{
-				status:  http.StatusBadRequest,
-				code:    errs.CodeBadRequest,
-				message: "invalid JSON body: multiple JSON values",
-			}
-		}
-		return models.OrderReq{}, badJSON(err)
-	}
-
-	return req, nil
-}
-
-func badJSON(err error) *validationError {
-	msg := "invalid JSON body"
-	var se *json.SyntaxError
-	if errors.As(err, &se) {
-		msg = fmt.Sprintf("invalid JSON at byte offset %d", se.Offset)
-	}
-	return &validationError{
-		status:  http.StatusBadRequest,
-		code:    errs.CodeBadRequest,
-		message: msg,
-	}
-}
-
-func requestFingerprint(req models.OrderReq) string {
-	type canonicalOrderReq struct {
-		CouponCode *string              `json:"couponCode,omitempty"`
-		Items      []models.OrderItemIn `json:"items"`
-	}
-
-	normalized := canonicalOrderReq{
-		Items: make([]models.OrderItemIn, len(req.Items)),
-	}
-	if req.CouponCode != nil {
-		code := strings.TrimSpace(*req.CouponCode)
-		if code != "" {
-			normalized.CouponCode = &code
-		}
-	}
-	for i, item := range req.Items {
-		normalized.Items[i] = models.OrderItemIn{
-			ProductID: strings.TrimSpace(item.ProductID),
-			Quantity:  item.Quantity,
-		}
-	}
-
-	raw, err := json.Marshal(normalized)
-	if err != nil {
-		return ""
-	}
-	sum := sha256.Sum256(raw)
-	return fmt.Sprintf("%x", sum)
 }
 
 func (h *Handler) calculateOrder(req models.OrderReq) (orderCalculation, *validationError) {

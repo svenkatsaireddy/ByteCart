@@ -30,13 +30,13 @@ type OrderItemIn struct {
 
 // Order is the successful order response (OpenAPI + helpful totals).
 type Order struct {
-	ID         string         `json:"id"`
-	Items      []OrderItemOut `json:"items"`
-	Products   []Product      `json:"products"`
-	CouponCode *string        `json:"couponCode,omitempty"`
-	Subtotal   float64        `json:"subtotal"`
-	Discount   float64        `json:"discount"`
-	Total      float64        `json:"total"`
+	ID         string          `json:"id"`
+	Items      []OrderItemOut  `json:"items"`
+	Products   []Product       `json:"products"`
+	CouponCode *string         `json:"couponCode,omitempty"`
+	Subtotal   float64         `json:"subtotal"`
+	Discount   float64         `json:"discount"`
+	Total      float64         `json:"total"`
 }
 
 // CouponValidation is returned when the client previews a discount.

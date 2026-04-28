@@ -1,3 +1,13 @@
+FROM node:24-alpine AS frontend
+
+WORKDIR /src/frontend
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend ./
+RUN npm run build
+
 FROM golang:1.22-alpine AS build
 
 WORKDIR /src
@@ -14,6 +24,7 @@ FROM alpine:3.20
 WORKDIR /app
 
 COPY --from=build /out/server /app/server
+COPY --from=frontend /src/frontend/dist /app/frontend/dist
 COPY data /app/data
 COPY examples /app/examples
 COPY api /app/api

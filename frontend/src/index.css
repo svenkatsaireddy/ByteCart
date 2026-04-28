@@ -1,0 +1,124 @@
+@font-face {
+  font-family: 'Red Hat Text';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/red-hat-text-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Red Hat Text';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/red-hat-text-latin-600-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Red Hat Text';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/red-hat-text-latin-700-normal.woff2') format('woff2');
+}
+
+:root {
+  --surface: #fcf8f6;
+  --card: #ffffff;
+  --ink: #260f08;
+  --muted: #87635a;
+  --rose-50: #fff7f3;
+  --rose-100: #f5eeec;
+  --rose-200: #e6d7d1;
+  --rose-300: #c9aea6;
+  --accent: #c73b0f;
+  --accent-strong: #9f2d07;
+  --focus-ring: rgba(199, 59, 15, 0.3);
+
+  color: var(--ink);
+  background: var(--surface);
+  font: 400 16px/1.5 'Red Hat Text', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 231, 220, 0.9), transparent 26rem),
+    linear-gradient(180deg, #fff7f3 0%, var(--surface) 26rem);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100svh;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+img,
+svg {
+  display: block;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--ink);
+  line-height: 1.08;
+}
+
+h1 {
+  font-size: clamp(2.5rem, 6vw, 5.25rem);
+  font-weight: 700;
+  letter-spacing: -0.065em;
+}
+
+h2 {
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+}
+
+h3 {
+  font-weight: 600;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+::selection {
+  color: var(--card);
+  background: var(--accent);
+}

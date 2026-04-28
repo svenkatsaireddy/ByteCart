@@ -55,7 +55,6 @@ func main() {
 	api.GET("/product", h.ListProducts)
 	api.GET("/product/:productId", h.GetProduct)
 	api.POST("/order", auth.RequireScope("create_order"), h.PlaceOrder)
-	api.POST("/coupon/validate", auth.RequireScope("create_order"), h.ValidateCoupon)
 	registerFrontendRoutes(r)
 
 	log.Printf("listening on %s", cfg.Addr)

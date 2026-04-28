@@ -517,15 +517,15 @@ flowchart TD
     B --> D["Server loads coupon file paths"]
     C --> E["API serves requests on port 8080"]
     D --> E
+    F["Frontend build output"] --> E
 ```
 
-This makes local review and deployment easier because the app can run in a predictable packaged environment.
+This makes local review and deployment easier because the app can run in a predictable packaged environment. The Docker image builds the React frontend and serves it from the same Go process as the API.
 
 ## 15. Known Gaps
 
 A few intentional or current limitations still exist:
 
-- product responses do not yet include the live demo's `image` object
 - orders are returned but not persisted
 - idempotency is in-memory only
 - no database or external cache is used yet
