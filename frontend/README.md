@@ -12,6 +12,7 @@ React + Vite shopping-cart UI for the Oolio food ordering challenge.
 - Order submission to the Go API and confirmation modal
 - Responsive layout and keyboard-visible focus states
 - Vendored Red Hat Text `.woff2` files for offline-safe typography
+- Compatible with secure backend headers and local health-checked deployment flow
 
 ## Promo Codes
 
@@ -41,6 +42,8 @@ npm run dev
 ```
 
 The Vite dev server proxies `/api` requests to `http://127.0.0.1:8080`.
+
+For full-stack review mode, the Go server can also serve the built frontend directly from `frontend/dist`.
 
 ## Build
 

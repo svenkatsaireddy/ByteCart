@@ -1,10 +1,12 @@
-import { startTransition, useEffect, useState } from 'react'
+import { startTransition, useEffect, useRef, useState } from 'react'
 import './App.css'
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
 })
+
+const requestTimeoutMs = 12000
 
 function formatCurrency(value) {
   return currencyFormatter.format(value || 0)
@@ -39,6 +41,27 @@ function getApiErrorMessage(data, fallback) {
     return data.error.code
   }
   return fallback
+}
+
+async function fetchJson(url, options = {}) {
+  const controller = new AbortController()
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), requestTimeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    const data = await response.json().catch(() => null)
+    return { response, data }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('The request timed out. Please try again.')
+    }
+    throw error
+  } finally {
+    globalThis.clearTimeout(timeoutId)
+  }
 }
 
 function CartIcon() {
@@ -118,6 +141,7 @@ function App() {
   const [couponCode, setCouponCode] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState(null)
   const [couponStatus, setCouponStatus] = useState('idle')
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false)
   const [couponMessage, setCouponMessage] = useState('')
   const [status, setStatus] = useState('loading')
   const [loadError, setLoadError] = useState('')
@@ -125,6 +149,7 @@ function App() {
   const [confirmation, setConfirmation] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [reloadSeed, setReloadSeed] = useState(0)
+  const couponRequestSeq = useRef(0)
 
   useEffect(() => {
     let ignore = false
@@ -134,11 +159,10 @@ function App() {
       setLoadError('')
 
       try {
-        const response = await fetch('/api/product')
+        const { response, data } = await fetchJson('/api/product')
         if (!response.ok) {
           throw new Error(`Unable to load products (${response.status})`)
         }
-        const data = await response.json()
         if (ignore) {
           return
         }
@@ -184,10 +208,18 @@ function App() {
   const total = appliedCoupon
     ? roundToCents(appliedCoupon.total)
     : roundToCents(subtotal)
+  const categoryCount = new Set(products.map((product) => product.category)).size
+  const averageTicket = products.length
+    ? roundToCents(
+        products.reduce((sum, product) => sum + product.price, 0) / products.length,
+      )
+    : 0
 
   function clearAppliedCoupon() {
+    couponRequestSeq.current += 1
     setAppliedCoupon(null)
     setCouponStatus('idle')
+    setIsApplyingCoupon(false)
     setCouponMessage('')
   }
 
@@ -207,7 +239,7 @@ function App() {
   }
 
   async function validateCouponCode(code) {
-    const response = await fetch('/api/coupon/validate', {
+    const { response, data } = await fetchJson('/api/coupon/validate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -216,7 +248,6 @@ function App() {
       body: JSON.stringify(buildOrderPayload(code)),
     })
 
-    const data = await response.json().catch(() => null)
     if (!response.ok) {
       throw new Error(
         getApiErrorMessage(data, `Unable to apply coupon (${response.status})`),
@@ -270,6 +301,10 @@ function App() {
   }
 
   async function handleApplyCoupon() {
+    if (isApplyingCoupon || isSubmitting) {
+      return
+    }
+
     const normalizedCoupon = normalizeCoupon(couponCode)
     if (cartItems.length === 0) {
       setCouponStatus('error')
@@ -284,24 +319,36 @@ function App() {
       return
     }
 
-    setCouponStatus('applying')
+    setIsApplyingCoupon(true)
     setCouponMessage('')
     setOrderError('')
+    const requestSeq = couponRequestSeq.current + 1
+    couponRequestSeq.current = requestSeq
 
     try {
       const validatedCoupon = await validateCouponCode(normalizedCoupon)
+      if (requestSeq !== couponRequestSeq.current) {
+        return
+      }
       setAppliedCoupon(validatedCoupon)
       setCouponStatus('applied')
       setCouponMessage(`${validatedCoupon.couponCode} applied successfully.`)
     } catch (error) {
+      if (requestSeq !== couponRequestSeq.current) {
+        return
+      }
       setAppliedCoupon(null)
       setCouponStatus('error')
       setCouponMessage(getErrorMessage(error, 'Unable to apply coupon.'))
+    } finally {
+      if (requestSeq === couponRequestSeq.current) {
+        setIsApplyingCoupon(false)
+      }
     }
   }
 
   async function handlePlaceOrder() {
-    if (cartItems.length === 0 || isSubmitting) {
+    if (cartItems.length === 0 || isSubmitting || isApplyingCoupon) {
       return
     }
 
@@ -312,27 +359,41 @@ function App() {
     let couponForOrder = appliedCoupon?.couponCode ?? ''
 
     if (normalizedCoupon && normalizedCoupon !== appliedCoupon?.couponCode) {
-      setCouponStatus('applying')
+      setIsApplyingCoupon(true)
       setCouponMessage('')
+      const requestSeq = couponRequestSeq.current + 1
+      couponRequestSeq.current = requestSeq
       try {
         const validatedCoupon = await validateCouponCode(normalizedCoupon)
+        if (requestSeq !== couponRequestSeq.current) {
+          setIsSubmitting(false)
+          return
+        }
         setAppliedCoupon(validatedCoupon)
         setCouponStatus('applied')
         setCouponMessage(`${validatedCoupon.couponCode} applied successfully.`)
         couponForOrder = validatedCoupon.couponCode
       } catch (error) {
+        if (requestSeq !== couponRequestSeq.current) {
+          setIsSubmitting(false)
+          return
+        }
         setAppliedCoupon(null)
         setCouponStatus('error')
         setCouponMessage(getErrorMessage(error, 'Unable to apply coupon.'))
         setIsSubmitting(false)
         return
+      } finally {
+        if (requestSeq === couponRequestSeq.current) {
+          setIsApplyingCoupon(false)
+        }
       }
     }
 
     const payload = buildOrderPayload(couponForOrder)
 
     try {
-      const response = await fetch('/api/order', {
+      const { response, data } = await fetchJson('/api/order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -343,7 +404,6 @@ function App() {
         body: JSON.stringify(payload),
       })
 
-      const data = await response.json().catch(() => null)
       if (!response.ok) {
         throw new Error(
           getApiErrorMessage(data, `Unable to place order (${response.status})`),
@@ -391,17 +451,31 @@ function App() {
           <header className="hero-panel">
             <p className="eyebrow">Dessert delivery</p>
             <div className="hero-copy">
-              <div>
+              <div className="hero-main">
                 <h1>Pick your favorites and confirm in one smooth flow.</h1>
                 <p className="hero-text">
                   Live menu data comes from the Go backend, including pricing,
                   product images, and checkout totals.
                 </p>
+                <div className="hero-stats" aria-label="Storefront highlights">
+                  <div className="hero-stat">
+                    <strong>{products.length || 9}</strong>
+                    <span>Seasonal desserts</span>
+                  </div>
+                  <div className="hero-stat">
+                    <strong>{categoryCount || 6}</strong>
+                    <span>Categories</span>
+                  </div>
+                  <div className="hero-stat">
+                    <strong>{formatCurrency(averageTicket || 5.5)}</strong>
+                    <span>Average ticket</span>
+                  </div>
+                </div>
               </div>
               <div className="hero-note">
-                <span className="hero-note-label">Discounts</span>
-                <strong>Validated at checkout</strong>
-                <span>Enter a code in the cart to preview savings.</span>
+                <span className="hero-note-label">Store promise</span>
+                <strong>Live inventory, graceful checkout</strong>
+                <span>Responsive ordering across desktop, tablet, and mobile.</span>
               </div>
             </div>
           </header>
@@ -448,6 +522,12 @@ function App() {
                               quantity > 0 ? 'selected' : ''
                             }`}
                           >
+                            <div className="product-badge-row">
+                              <span className="product-badge">{product.category}</span>
+                              <span className="product-badge subtle">
+                                Fresh today
+                              </span>
+                            </div>
                             <picture>
                               <source
                                 media="(min-width: 1024px)"
@@ -504,11 +584,16 @@ function App() {
                           </div>
 
                           <div className="product-copy">
-                            <p className="product-category">{product.category}</p>
+                            <p className="product-category">Hand-finished dessert</p>
                             <h3>{product.name}</h3>
-                            <p className="product-price">
-                              {formatCurrency(product.price)}
-                            </p>
+                            <div className="product-meta-row">
+                              <p className="product-price">
+                                {formatCurrency(product.price)}
+                              </p>
+                              <span className="product-meta-note">
+                                Ready in minutes
+                              </span>
+                            </div>
                           </div>
                         </article>
                       )
@@ -567,15 +652,16 @@ function App() {
                         type="text"
                         placeholder="Enter discount code"
                         value={couponCode}
+                        disabled={isApplyingCoupon || isSubmitting}
                         onChange={handleCouponChange}
                       />
                       <button
                         type="button"
                         className="apply-button"
-                        disabled={couponStatus === 'applying'}
+                        disabled={isApplyingCoupon || isSubmitting}
                         onClick={handleApplyCoupon}
                       >
-                        {couponStatus === 'applying' ? 'Applying...' : 'Apply'}
+                        {isApplyingCoupon ? 'Applying...' : 'Apply'}
                       </button>
                     </div>
                   </label>
@@ -628,10 +714,10 @@ function App() {
                 <button
                   type="button"
                   className="confirm-button"
-                  disabled={isSubmitting || couponStatus === 'applying'}
+                  disabled={isSubmitting || isApplyingCoupon}
                   onClick={handlePlaceOrder}
                 >
-                  {isSubmitting || couponStatus === 'applying'
+                  {isSubmitting
                     ? 'Confirming Order...'
                     : 'Confirm Order'}
                 </button>
