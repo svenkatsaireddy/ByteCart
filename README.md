@@ -8,6 +8,7 @@ The app focuses on:
 - cart add, remove, increase, and decrease behavior
 - INR totals, discount totals, and checkout confirmation
 - explicit promo-code validation before discounts are applied
+- request IDs, secure default headers, health endpoints, and graceful shutdown
 - correctness against the published contract
 - robust order validation
 - scalable promo-code validation for large gzip corpora
@@ -27,6 +28,8 @@ All endpoints from the checked-in OpenAPI spec are implemented:
 - `GET /api/product/{productId}`
 - `POST /api/order`
 - `POST /api/coupon/validate`
+- `GET /healthz`
+- `GET /readyz`
 
 The order and coupon-validation endpoints require an API key with the `create_order` scope.
 
@@ -37,6 +40,17 @@ The order and coupon-validation endpoints require an API key with the `create_or
 - UUIDs for order IDs
 - React 19 + Vite for the shopping-cart UI
 - vendored Red Hat Text `.woff2` files for offline-safe typography
+
+## Production-Grade Features
+
+- Request tracing with `X-Request-ID` passthrough/generation on every response.
+- Standardized JSON error envelopes that include `requestId`.
+- Secure default response headers including CSP, `nosniff`, frame denial, and permissions policy.
+- Configurable request body limits on API routes.
+- Health and readiness endpoints for orchestration and uptime checks.
+- Graceful shutdown with configurable drain timeout.
+- Idempotency fingerprinting so replay keys cannot silently return the wrong order.
+- Bounded promo validation cache to avoid unbounded memory growth.
 
 ## Project Structure
 
@@ -150,6 +164,11 @@ Environment variables supported by the server:
 - `API_KEYS`: comma-separated key-to-scope mapping, default `apitest:create_order,readonly:`
 - `PROMO_DISCOUNT_PERCENT`: discount percent applied when a promo code is valid, default `10`
 - `FRONTEND_DIST`: optional path to a built frontend, default `frontend/dist`
+- `REQUEST_BODY_LIMIT_BYTES`: max API request body size, default `1048576`
+- `READ_TIMEOUT_SECONDS`: server read timeout, default `10`
+- `WRITE_TIMEOUT_SECONDS`: server write timeout, default `15`
+- `IDLE_TIMEOUT_SECONDS`: server idle timeout, default `60`
+- `SHUTDOWN_TIMEOUT_SECONDS`: graceful shutdown timeout, default `10`
 
 ## Authentication
 
@@ -167,6 +186,19 @@ Behavior:
 - missing key: `401`
 - invalid key: `401`
 - valid key without required scope: `403`
+
+## Operations
+
+Health checks:
+
+- `GET /healthz`: liveness probe
+- `GET /readyz`: readiness probe that verifies product data is loaded and promo validation is available when coupon files are required
+
+Operational behavior:
+
+- API responses include `X-Request-ID`.
+- Errors include `requestId` inside the error envelope for support/debugging.
+- Reusing an `Idempotency-Key` with a different request body returns `409 Conflict`.
 
 ## Promo Code Validation
 
